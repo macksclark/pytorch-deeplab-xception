@@ -2,6 +2,9 @@ import argparse
 import os
 import numpy as np
 from tqdm import tqdm
+from matplotlib import pyplot as plt
+from PIL import Image
+import cv2
 
 from mypath import Path
 from dataloaders import make_data_loader
@@ -21,6 +24,7 @@ class Trainer(object):
         # Define Saver
         self.saver = Saver(args)
         self.saver.save_experiment_config()
+
         # Define Tensorboard Summary
         self.summary = TensorboardSummary(self.saver.experiment_dir)
         self.writer = self.summary.create_summary()
@@ -43,8 +47,7 @@ class Trainer(object):
         optimizer = torch.optim.SGD(train_params, momentum=args.momentum,
                                     weight_decay=args.weight_decay, nesterov=args.nesterov)
 
-        # Define Criterion
-        # whether to use class balanced weights
+        # Define Criterion whether to use class balanced weights
         if args.use_balanced_weights:
             classes_weights_path = os.path.join(Path.db_root_dir(args.dataset), args.dataset+'_classes_weights.npy')
             if os.path.isfile(classes_weights_path):
@@ -61,7 +64,7 @@ class Trainer(object):
         self.evaluator = Evaluator(self.nclass)
         # Define lr scheduler
         self.scheduler = LR_Scheduler(args.lr_scheduler, args.lr,
-                                            args.epochs, len(self.train_loader))
+                                      args.epochs, 0)  # last arg should be len(self.train_loader)
 
         # Using cuda
         if args.cuda:
@@ -175,6 +178,39 @@ class Trainer(object):
                 'best_pred': self.best_pred,
             }, is_best)
 
+    def evaluate(self):
+        '''
+        Use the trained model on the testing set (i.e. self.test_loader)
+        '''
+        self.model.eval()
+
+        from torchsummary import summary
+        summary(self.model, input_size=(3, 513, 513))
+
+        progress_bar = tqdm(self.test_loader, desc='\r')
+        for i, sample in enumerate(progress_bar):
+            # There are only images in the test loader, no labels/targets
+            image = sample[0]['image']
+            if self.args.cuda:
+                image = image.cuda()
+            with torch.no_grad():
+                output = self.model(image)
+            for j in range(output.shape[0]):
+                mask = output[j, :, :, :]
+                print(mask.numpy())
+                path = os.path.join(os.getcwd(), 'output', 'images', 'output_' + str(j) + '.png')
+                arr = np.ascontiguousarray(mask.numpy().transpose(1, 2, 0))
+                out = Image.fromarray(arr, 'RGB')
+                out.save(path)
+
+    # def save_output(self, output, image):
+    #     '''
+    #     Save the masked version of the
+    #     :param output: the bitwise mask for the image, produced by deeplab NN
+    #     :param image: the original image that the mask should be applied to
+    #     '''
+    #     cv2.imwrite(filename, mask, (cv2.IMWRITE_PXM_BINARY, 1))
+
 def main():
     parser = argparse.ArgumentParser(description="PyTorch DeeplabV3Plus Training")
     parser.add_argument('--backbone', type=str, default='resnet',
@@ -211,6 +247,7 @@ def main():
     parser.add_argument('--test-batch-size', type=int, default=None,
                         metavar='N', help='input batch size for \
                                 testing (default: auto)')
+    parser.add_argument('--test-root', default=None, help='root directory for images to be processed (default: None)')
     parser.add_argument('--use-balanced-weights', action='store_true', default=False,
                         help='whether to use balanced weights (default: False)')
     # optimizer params
@@ -243,7 +280,7 @@ def main():
                         help='finetuning on a different dataset')
     # evaluation option
     parser.add_argument('--eval-interval', type=int, default=1,
-                        help='evaluuation interval (default: 1)')
+                        help='evaluation interval (default: 1)')
     parser.add_argument('--no-val', action='store_true', default=False,
                         help='skip validation during training')
 
@@ -264,7 +301,7 @@ def main():
     # default settings for epochs, batch_size and lr
     if args.epochs is None:
         epoches = {
-            'coco': 30,
+            # 'coco': 30,
             'cityscapes': 200,
             'pascal': 50,
         }
@@ -278,12 +315,11 @@ def main():
 
     if args.lr is None:
         lrs = {
-            'coco': 0.1,
+            # 'coco': 0.1,
             'cityscapes': 0.01,
             'pascal': 0.007,
         }
         args.lr = lrs[args.dataset.lower()] / (4 * len(args.gpu_ids)) * args.batch_size
-
 
     if args.checkname is None:
         args.checkname = 'deeplab-'+str(args.backbone)
@@ -292,11 +328,13 @@ def main():
     trainer = Trainer(args)
     print('Starting Epoch:', trainer.args.start_epoch)
     print('Total Epoches:', trainer.args.epochs)
+
     for epoch in range(trainer.args.start_epoch, trainer.args.epochs):
         trainer.training(epoch)
         if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
             trainer.validation(epoch)
 
+    trainer.evaluate()
     trainer.writer.close()
 
 if __name__ == "__main__":

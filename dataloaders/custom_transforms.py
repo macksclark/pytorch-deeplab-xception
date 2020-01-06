@@ -4,6 +4,18 @@ import numpy as np
 
 from PIL import Image, ImageOps, ImageFilter
 
+class TestMode(object):
+    '''
+    Transformation from a single image from the ImageFolder iterator (data loader)
+    to a dictionary with an image that can be used for the rest of the transformations
+    Args:
+        image (Image): np array of image
+    '''
+    def __call__(self, image):
+        # Make the label a new PIL Image (B/W) of size of the original image
+        return {'image': image,
+                'label': Image.new('L', size=image.size)}   # Use the default black colour
+
 class Normalize(object):
     """Normalize a tensor image with mean and standard deviation.
     Args:
@@ -26,7 +38,6 @@ class Normalize(object):
         return {'image': img,
                 'label': mask}
 
-
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
@@ -45,7 +56,6 @@ class ToTensor(object):
         return {'image': img,
                 'label': mask}
 
-
 class RandomHorizontalFlip(object):
     def __call__(self, sample):
         img = sample['image']
@@ -56,7 +66,6 @@ class RandomHorizontalFlip(object):
 
         return {'image': img,
                 'label': mask}
-
 
 class RandomRotate(object):
     def __init__(self, degree):
@@ -72,7 +81,6 @@ class RandomRotate(object):
         return {'image': img,
                 'label': mask}
 
-
 class RandomGaussianBlur(object):
     def __call__(self, sample):
         img = sample['image']
@@ -83,7 +91,6 @@ class RandomGaussianBlur(object):
 
         return {'image': img,
                 'label': mask}
-
 
 class RandomScaleCrop(object):
     def __init__(self, base_size, crop_size, fill=0):
@@ -120,7 +127,6 @@ class RandomScaleCrop(object):
 
         return {'image': img,
                 'label': mask}
-
 
 class FixScaleCrop(object):
     def __init__(self, crop_size):

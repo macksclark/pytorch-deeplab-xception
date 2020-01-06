@@ -149,7 +149,6 @@ def ResNet101(nInputChannels=3, os=16, pretrained=False):
     model = ResNet(nInputChannels, Bottleneck, [3, 4, 23, 3], os, pretrained=pretrained)
     return model
 
-
 class ASPP_module(nn.Module):
     def __init__(self, inplanes, planes, dilation):
         super(ASPP_module, self).__init__()
@@ -180,7 +179,6 @@ class ASPP_module(nn.Module):
             elif isinstance(m, BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-
 
 class DeepLabv3_plus(nn.Module):
     def __init__(self, nInputChannels=3, n_classes=21, os=16, pretrained=False, freeze_bn=False, _print=True):
@@ -287,7 +285,6 @@ def get_1x_lr_params(model):
             if k.requires_grad:
                 yield k
 
-
 def get_10x_lr_params(model):
     """
     This generator returns all the parameters for the last layer of the net,
@@ -298,7 +295,6 @@ def get_10x_lr_params(model):
         for k in b[j].parameters():
             if k.requires_grad:
                 yield k
-
 
 if __name__ == "__main__":
     model = DeepLabv3_plus(nInputChannels=3, n_classes=21, os=16, pretrained=True, _print=True)
